@@ -8,6 +8,7 @@ class OlxExport:
     def __init__(self, cartridge):
         self.cartridge = cartridge
         self.doc = None
+        self.count = 0
 
     def xml(self):
         self.doc = xml.dom.minidom.Document()
@@ -23,12 +24,13 @@ class OlxExport:
 
     def _add_olx_nodes(self, elt, data, tags):
         leaf = not tags
+        self.count = self.count + 1
         for dd in data:
             if leaf:
                 type = None
                 if "identifierref" in dd:
                     idref = dd["identifierref"]
-                    type, details = self.cartridge.get_resource_content(idref)
+                    type, details = self.cartridge.get_resource_content(idref, self.count)
                 if type is None:
                     type = "html"
                     details = {
