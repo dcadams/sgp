@@ -1,3 +1,10 @@
+# Common-cartridge-converter
+converts .imscc into Open edX supported .tar.gz
+
+
+A modified repo with more improved code, stability and supports more problem types...
+
+
 cc2olx
 ######
 
