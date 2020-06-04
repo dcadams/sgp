@@ -562,8 +562,8 @@ class Cartridge:
     def _res_filename(self, file_name):
         return self.directory / file_name
 
-    def _parse_lti(self, resource):
-        tree = filesystem.get_xml_tree(self._res_filename(resource['children'][0].href))
+    def parse_lti(self, resource, launch_url=None):
+        tree = filesystem.get_xml_tree(self.res_filename(resource["children"][0].href))
         root = tree.getroot()
         ns = {
             'blti': 'http://www.imsglobal.org/xsd/imsbasiclti_v1p0',
@@ -572,13 +572,16 @@ class Cartridge:
         }
         title = root.find('blti:title', ns).text
         description = root.find('blti:description', ns).text
-        launch_url = root.find('blti:secure_launch_url', ns)
-        if launch_url is None:
-            launch_url = root.find('blti:launch_url', ns)
-        if launch_url is not None:
+        if launch_url != None:
             launch_url = launch_url.text
         else:
-            launch_url = ''
+            launch_url = root.find('blti:secure_launch_url', ns)
+            if launch_url is None:
+                launch_url = root.find('blti:launch_url', ns)
+            if launch_url is not None:
+                launch_url = launch_url.text
+            else:
+                launch_url = ''
         width = root.find("blti:extensions/lticm:property[@name='selection_width']", ns)
         if width is None:
             width = '500'
@@ -606,3 +609,10 @@ class Cartridge:
             'custom_parameters': parameters,
         }
         return data
+
+def unimported_content_html(res_type, res, count=''):
+    text = "{} Unimported content: type = {!r}".format(count, res_type)
+    if "href" in res:
+        text += ", href = {!r}".format(res["href"])
+    print("***", text)
+    return "html", { "html": text }
