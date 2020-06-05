@@ -1,7 +1,9 @@
 import io
 import re
+import os
 import tarfile
 import xml.dom.minidom
+from shutil import copytree, rmtree
 
 
 class OlxExport:
@@ -101,3 +103,21 @@ def onefile_tar_gz(filetgz, content, string_name):
 
     with tarfile.open(str(filetgz), 'w:gz') as tgz:
         tgz.addfile(tarinfo, io.BytesIO(content))
+
+def multifile_tar_gz(filetgz, olx_file, cartridge_dir, asset_path, contents, string_name="course.xml"):
+    """
+    crates tar.gz file having assets(static dir) of course and course.xml
+    """
+    tarinfo = tarfile.TarInfo(string_name)
+    tarinfo.size = len(contents)
+    try:
+        static_dir = cartridge_dir + 'assets/static'
+        if os.path.exists(static_dir) and os.path.isdir(static_dir):
+            rmtree(static_dir)
+        copytree(asset_path, static_dir)
+    except Exception as e:
+        pass
+    else:
+        with tarfile.open(filetgz, 'w:gz') as tgz:
+            tgz.addfile(tarinfo, io.BytesIO(contents))
+            tgz.add(static_dir, arcname='static')
