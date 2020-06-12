@@ -336,6 +336,30 @@ class Cartridge:
         title = self.metadata.get('lom', {}).get('general', {}).get('title') or 'Default Course Title'
         return title
 
+    def get_start_date(self):
+        try:
+            for resource in self.resources:
+                for res_file in resource.get('children'):
+                    if "course_settings.xml" in res_file.href:
+                        res_tree = filesystem.get_xml_tree(self.res_filename(res_file.href))
+                        root = res_tree.getroot()
+                        ns = {"wl": "http://canvas.instructure.com/xsd/cccv1p0"}
+                        return root.find("wl:start_at", ns).text
+        except Exception as e:
+            return None
+
+    def get_end_date(self):
+        try:
+            for resource in self.resources:
+                for res_file in resource.get('children'):
+                    if "course_settings.xml" in res_file.href:
+                        res_tree = filesystem.get_xml_tree(self.res_filename(res_file.href))
+                        root = res_tree.getroot()
+                        ns = {"wl": "http://canvas.instructure.com/xsd/cccv1p0"}
+                        return root.find("wl:conclude_at", ns).text
+        except Exception as e:
+            return None
+
     def get_language(self):
         # TODO: ensure the type of language code in the metadata
         title = self.metadata.get('lom', {}).get('general', {}).get('language') or 'en'

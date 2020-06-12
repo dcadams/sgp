@@ -20,6 +20,8 @@ class OlxExport:
         xcourse.setAttribute("org", self.cartridge.get_course_org())
         xcourse.setAttribute("course", "Some_cc_Course")
         xcourse.setAttribute("name", self.cartridge.get_title())
+        xcourse.setAttribute("start", self.cartridge.get_start_date())
+        xcourse.setAttribute("end", self.cartridge.get_end_date())
         tags = "chapter sequential vertical".split()
         self._add_olx_nodes(xcourse, self.cartridge.normalized['children'], tags)
         return self.doc.toprettyxml()
