@@ -360,6 +360,18 @@ class Cartridge:
         except Exception as e:
             return None
 
+    def get_course_image(self):
+        try:
+            course_image_path = self.res_filename("web_resources/course_image")
+            if os.path.exists(course_image_path):
+                course_image_file = os.listdir(course_image_path)[0]
+                return "course_image_" + course_image_file
+            else:
+                return None
+        except Exception as e:
+            return None
+
+
     def get_language(self):
         # TODO: ensure the type of language code in the metadata
         title = self.metadata.get('lom', {}).get('general', {}).get('language') or 'en'
