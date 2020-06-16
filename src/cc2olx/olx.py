@@ -20,8 +20,12 @@ class OlxExport:
         xcourse.setAttribute("org", self.cartridge.get_course_org())
         xcourse.setAttribute("course", "Some_cc_Course")
         xcourse.setAttribute("name", self.cartridge.get_title())
-        xcourse.setAttribute("start", self.cartridge.get_start_date())
-        xcourse.setAttribute("end", self.cartridge.get_end_date())
+        start_date = self.cartridge.get_start_date()
+        if start_date:
+            xcourse.setAttribute("start", start_date)
+        end_date = self.cartridge.get_end_date()
+        if end_date:
+            xcourse.setAttribute("end", end_date)
         xcourse.setAttribute("course_image", self.cartridge.get_course_image())
 
         tags = "chapter sequential vertical".split()
