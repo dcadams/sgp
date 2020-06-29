@@ -34,6 +34,7 @@ class OlxExport:
 
     def _add_olx_nodes(self, elt, data, tags):
         leaf = not tags
+        all_child = []
         self.count = self.count + 1
         for dd in data:
             if leaf:
@@ -63,15 +64,39 @@ class OlxExport:
                     child.setAttribute("youtube_id_1_0", details["youtube"])
                 elif type == 'lti':
                     child = self._create_lti_node(details)
+                elif type == "problems":
+                    if not details.get("problems"):
+                        print("*** Skipping problems and/or problems are blank ")
+                        continue
+                    for que in details.get("problems"):
+                        if que.get("que_type") in ["multiplechoiceresponse"]:
+                            all_child.append(self._create_multiplechoiceresponse(que))
+                        else:
+                            print("*** Skipping problem: problem_type: {}".format(que.get("que_type")))
+                
                 else:
                     raise Exception("WUT")
             else:
                 child = self.doc.createElement(tags[0])
-            if "title" in dd:
-                child.setAttribute("display_name", dd["title"])
-            elt.appendChild(child)
-            if "children" in dd:
-                self._add_olx_nodes(child, dd["children"], tags[1:])
+
+            if not all_child:
+                if "title" in dd:
+                    child.setAttribute("display_name", dd["title"])
+                elt.appendChild(child)
+                if "children" in dd:
+                    self._add_olx_nodes(child, dd["children"], tags[1:])
+            else:
+                for child in all_child:
+                    if "title" in dd:
+                        child.setAttribute("display_name", dd["title"])
+                    elt.appendChild(child)
+                    if "children" in dd:
+                        self._add_olx_nodes(child, dd["children"], tags[1:])
+            # if "title" in dd:
+            #     child.setAttribute("display_name", dd["title"])
+            # elt.appendChild(child)
+            # if "children" in dd:
+            #     self._add_olx_nodes(child, dd["children"], tags[1:])
 
     def _create_lti_node(self, details):
         node = self.doc.createElement('lti_consumer')
@@ -95,6 +120,34 @@ class OlxExport:
         node.setAttribute('xblock-family', 'xblock.v1')
         return node
 
+    def _create_multiplechoiceresponse(self, question):
+        problem_node = self.doc.createElement('problem')
+        problem_node.setAttribute('display_name', question.get('title'))
+        if question.get("que_type") == "multiplechoiceresponse":
+            _ch_node = self.doc.createElement('multiplechoiceresponse')
+            opt_node = self.doc.createElement('choicegroup')
+        elif question.get("que_type") == "multiple_response":
+            _ch_node = self.doc.createElement('choiceresponse')
+            opt_node = self.doc.createElement('checkboxgroup')
+            
+        que_text_node = self.doc.createElement('p')
+        que_text = self.doc.createCDATASection(question.get('que_text'))
+        for opt in question.get("options"):
+            option_node = self.doc.createElement('choice')
+            option_node.setAttribute("correct", str(opt.get("is_correct")).lower())
+            opt_text = self.doc.createCDATASection(str(opt.get('option_text')))
+            option_node.appendChild(opt_text)
+            opt_node.appendChild(option_node)
+            
+        # import pdb; pdb.set_trace()
+
+        que_text_node.appendChild(que_text)
+
+        _ch_node.appendChild(que_text_node)
+        _ch_node.appendChild(opt_node)
+        problem_node.appendChild(_ch_node)
+
+        return problem_node
 
 def convert_link_to_video(details):
     """Possibly convert a link to a video."""
