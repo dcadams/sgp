@@ -71,6 +71,8 @@ class OlxExport:
                     for que in details.get("problems"):
                         if que.get("que_type") in ["multiplechoiceresponse"]:
                             all_child.append(self._create_multiplechoiceresponse(que))
+                        elif que.get("que_type") in ["text_input"]:
+                            all_child.append(self._create_text_input(que))
                         else:
                             print("*** Skipping problem: problem_type: {}".format(que.get("que_type")))
                 
@@ -146,6 +148,40 @@ class OlxExport:
         _ch_node.appendChild(que_text_node)
         _ch_node.appendChild(opt_node)
         problem_node.appendChild(_ch_node)
+
+        return problem_node
+
+    def _create_text_input(self, question):
+        problem_node = self.doc.createElement('problem')
+        problem_node.setAttribute('display_name', question.get('title'))
+        ans_option = question.get("options")
+        if question.get('que_type') == "text_input":
+            _qe_node = self.doc.createElement('stringresponse')
+        elif question.get('que_type') == "numeric_input":
+            _qe_node = self.doc.createElement('numericalresponse')
+        if ans_option:
+            _qe_node.setAttribute('answer', ans_option[0])
+        
+        que_text_node = self.doc.createElement('p')
+        _qe_node.appendChild(que_text_node)
+        
+        que_text = self.doc.createCDATASection(question.get('que_text'))
+        que_text_node.appendChild(que_text)
+        
+        for ans in ans_option[1:]:
+            option_node = self.doc.createElement('additional_answer')
+            option_node.setAttribute('answer', ans)
+            _qe_node.appendChild(option_node)
+        
+        if question.get('que_type') == "text_input":
+            text_line_node = self.doc.createElement('textline')
+            text_line_node.setAttribute('size', '50')
+            _qe_node.appendChild(text_line_node)
+        if question.get('que_type') == "numeric_input":
+            text_line_node = self.doc.createElement('formulaequationinput')
+            _qe_node.appendChild(text_line_node)
+
+        problem_node.appendChild(_qe_node)
 
         return problem_node
 
