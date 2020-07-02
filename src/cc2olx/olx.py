@@ -69,7 +69,7 @@ class OlxExport:
                         print("*** Skipping problems and/or problems are blank ")
                         continue
                     for que in details.get("problems"):
-                        if que.get("que_type") in ["multiplechoiceresponse"]:
+                        if que.get("que_type") in ["multiplechoiceresponse", "multiple_response"]:
                             all_child.append(self._create_multiplechoiceresponse(que))
                         elif que.get("que_type") in ["text_input"]:
                             all_child.append(self._create_text_input(que))
@@ -157,8 +157,6 @@ class OlxExport:
         ans_option = question.get("options")
         if question.get('que_type') == "text_input":
             _qe_node = self.doc.createElement('stringresponse')
-        elif question.get('que_type') == "numeric_input":
-            _qe_node = self.doc.createElement('numericalresponse')
         if ans_option:
             _qe_node.setAttribute('answer', ans_option[0])
         
@@ -177,10 +175,7 @@ class OlxExport:
             text_line_node = self.doc.createElement('textline')
             text_line_node.setAttribute('size', '50')
             _qe_node.appendChild(text_line_node)
-        if question.get('que_type') == "numeric_input":
-            text_line_node = self.doc.createElement('formulaequationinput')
-            _qe_node.appendChild(text_line_node)
-
+        
         problem_node.appendChild(_qe_node)
 
         return problem_node
