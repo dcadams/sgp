@@ -6,7 +6,7 @@ import zipfile
 
 from cc2olx import filesystem
 from cc2olx.settings import collect_settings
-from cc2olx.settings import MANIFEST
+from cc2olx.settings import COURSE_SETTINGS, MANIFEST
 
 
 DIFFUSE_SHALLOW_SECTIONS = False
@@ -79,7 +79,9 @@ class Cartridge:
         self.version = '1.1'
         self.file_path = cartridge_file
         self.directory = None
-        self.ns = {}
+        self.manifest_ns = {}
+        self.course_settings = {}
+        self.course_settings_ns = {}
 
     def __repr__(self):
         filename = os.path.basename(self.file_path)
@@ -328,7 +330,7 @@ class Cartridge:
         # TODO: find a better value for this; lifecycle.contribute_date?
         return 'run'
 
-    def _extract(self):
+    def _extract_manifest(self):
         settings = collect_settings()
         workspace = settings['workspace']
         path_extracted = filesystem.unzip_directory(self.file_path, workspace)
@@ -339,13 +341,41 @@ class Cartridge:
     def _update_namespaces(self, root):
         ns = re.match('\{(.*)\}', root.tag).group(1)
         version = re.match('.*/(imsccv\dp\d)/', ns).group(1)
-        self.ns['ims'] = ns
-        self.ns['lomimscc'] = "http://ltsc.ieee.org/xsd/{version}/LOM/manifest".format(
+        self.manifest_ns['ims'] = ns
+        self.manifest_ns['lomimscc'] = "http://ltsc.ieee.org/xsd/{version}/LOM/manifest".format(
             version=version,
         )
 
+    def _update_course_settings_namespace(self, root):
+        ns = re.match('\{(.*)\}', root.tag).group(1)
+        self.course_settings_ns['wl'] = ns
+
+    def _extract_course_settings(self):
+        for resource in self.resources:
+            for res_file in resource.get('children'):
+                if COURSE_SETTINGS in res_file.href:
+                    return filesystem.get_xml_tree(self.res_filename(res_file.href))
+
+    def load_course_settings_extracted(self):
+        tree = self._extract_course_settings()
+        if tree:
+            root = tree.getroot()
+            self._update_course_settings_namespace(root)
+            data = self.parse_course_settings(root)
+            self.course_settings = data
+
+    def parse_course_settings(self, node):
+        data = {}
+        start_at = node.find('wl:start_at', self.course_settings_ns)
+        if start_at is not None:
+            data['start_date'] = start_at.text
+        conclude_at = node.find('wl:conclude_at', self.course_settings_ns)
+        if conclude_at is not None:
+            data['end_date'] = conclude_at.text
+        return data
+
     def load_manifest_extracted(self):
-        manifest = self._extract()
+        manifest = self._extract_manifest()
         tree = filesystem.get_xml_tree(manifest)
         root = tree.getroot()
         self._update_namespaces(root)
@@ -366,7 +396,7 @@ class Cartridge:
 
     def parse_metadata(self, node):
         data = dict()
-        metadata = node.find('./ims:metadata', self.ns)
+        metadata = node.find('./ims:metadata', self.manifest_ns)
         if metadata:
             data['schema'] = self.parse_schema(metadata)
             data['lom'] = self.parse_lom(metadata)
@@ -382,18 +412,18 @@ class Cartridge:
         return data
 
     def parse_schema_name(self, node):
-        schema_name = node.find('./ims:schema', self.ns)
+        schema_name = node.find('./ims:schema', self.manifest_ns)
         schema_name = schema_name.text
         return schema_name
 
     def parse_schema_version(self, node):
-        schema_version = node.find('./ims:schemaversion', self.ns)
+        schema_version = node.find('./ims:schemaversion', self.manifest_ns)
         schema_version = schema_version.text
         return schema_version
 
     def parse_lom(self, node):
         data = dict()
-        lom = node.find('lomimscc:lom', self.ns)
+        lom = node.find('lomimscc:lom', self.manifest_ns)
         if lom:
             data['general'] = self.parse_general(lom)
             data['lifecycle'] = self.parse_lifecycle(lom)
@@ -402,7 +432,7 @@ class Cartridge:
 
     def parse_general(self, node):
         data = {}
-        general = node.find('lomimscc:general', self.ns)
+        general = node.find('lomimscc:general', self.manifest_ns)
         if general:
             data['title'] = self.parse_text(general, 'lomimscc:title/lomimscc:string')
             data['language'] = self.parse_text(general, 'lomimscc:language/lomimscc:string')
@@ -412,7 +442,7 @@ class Cartridge:
 
     def parse_text(self, node, lookup):
         text = None
-        element = node.find(lookup, self.ns)
+        element = node.find(lookup, self.manifest_ns)
         if element is not None:
             text = element.text
         return text
@@ -424,7 +454,7 @@ class Cartridge:
 
     def parse_rights(self, node):
         data = dict()
-        element = node.find('lomimscc:rights', self.ns)
+        element = node.find('lomimscc:rights', self.manifest_ns)
         if element:
             data['is_restricted'] = self.parse_text(
                 element,
@@ -443,7 +473,7 @@ class Cartridge:
         data = dict()
         contribute_date = node.find(
             'lomimscc:lifeCycle/lomimscc:contribute/lomimscc:date/lomimscc:dateTime',
-            self.ns
+            self.manifest_ns
         )
         text = None
         if contribute_date is not None:
@@ -453,7 +483,7 @@ class Cartridge:
 
     def parse_organizations(self, node):
         data = []
-        element = node.find('ims:organizations', self.ns) or []
+        element = node.find('ims:organizations', self.manifest_ns) or []
         data = [
             self.parse_organization(org_node)
             for org_node in element
@@ -495,7 +525,7 @@ class Cartridge:
 
     def parse_resources(self, node):
         data = []
-        element = node.find('ims:resources', self.ns) or []
+        element = node.find('ims:resources', self.manifest_ns) or []
         data = [
             self.parse_resource(sub_element)
             for sub_element in element

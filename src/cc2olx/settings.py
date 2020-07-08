@@ -3,6 +3,7 @@ import logging
 import os
 
 
+COURSE_SETTINGS = 'course_settings.xml'
 MANIFEST = 'imsmanifest.xml'
 RESULT_TYPE_FOLDER = 'folder'
 RESULT_TYPE_ZIP = "zip"

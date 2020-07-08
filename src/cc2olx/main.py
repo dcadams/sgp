@@ -15,6 +15,7 @@ def convert_one_file(settings, input_file):
     filesystem.create_directory(workspace)
     cartridge = Cartridge(input_file)
     data = cartridge.load_manifest_extracted()
+    cartridge.load_course_settings_extracted()
     cartridge.normalize()
     # print()
     # print("=" * 100)

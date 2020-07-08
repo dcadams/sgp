@@ -16,6 +16,11 @@ class OlxExport:
         xcourse.setAttribute("org", self.cartridge.get_course_org())
         xcourse.setAttribute("course", "Some_cc_Course")
         xcourse.setAttribute("name", self.cartridge.get_title())
+        if self.cartridge.course_settings.get('start_date'):
+            xcourse.setAttribute("start", self.cartridge.course_settings['start_date'])
+        if self.cartridge.course_settings.get('end_date'):
+            xcourse.setAttribute("end", self.cartridge.course_settings['end_date'])
+
         tags = "chapter sequential vertical".split()
         self._add_olx_nodes(xcourse, self.cartridge.normalized['children'], tags)
         return self.doc.toprettyxml()
