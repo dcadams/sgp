@@ -73,6 +73,8 @@ class OlxExport:
                             all_child.append(self._create_multiplechoiceresponse(que))
                         elif que.get("que_type") in ["text_input", "numeric_input"]:
                             all_child.append(self._create_text_or_numeric_input(que))
+                        elif que.get("que_type") in ["multiple_text_input"]:
+                            all_child.append(self._create_multiple_text_input(que))
                         elif  que.get("que_type") in ["dropdowns_question"]:
                             all_child.append(self._create_dropdowns_question(que))
                         else:
@@ -142,8 +144,6 @@ class OlxExport:
             option_node.appendChild(opt_text)
             opt_node.appendChild(option_node)
             
-        # import pdb; pdb.set_trace()
-
         que_text_node.appendChild(que_text)
 
         _ch_node.appendChild(que_text_node)
@@ -187,6 +187,33 @@ class OlxExport:
 
         return problem_node
 
+    def _create_multiple_text_input(self, question):
+        problem_node = self.doc.createElement('problem')
+        problem_node.setAttribute('display_name', question.get('title'))
+        ans_option = question.get("options")
+
+        for _index, ans_list in enumerate(ans_option):
+            _qe_node = self.doc.createElement('stringresponse')
+            if ans_list:
+                _qe_node.setAttribute('answer', ans_list[0])
+
+            if _index == 0:
+                que_text_node = self.doc.createElement('p')
+                _qe_node.appendChild(que_text_node)
+                que_text = self.doc.createCDATASection(question.get('que_text'))
+                que_text_node.appendChild(que_text)
+
+            for ans in ans_list[1:]:
+                option_node = self.doc.createElement('additional_answer')
+                option_node.setAttribute('answer', ans)
+                _qe_node.appendChild(option_node)
+
+            text_line_node = self.doc.createElement('textline')
+            text_line_node.setAttribute('size', '50')
+            _qe_node.appendChild(text_line_node)
+            problem_node.appendChild(_qe_node)
+
+        return problem_node
 
     def _create_dropdowns_question(self, question):
         problem_node = self.doc.createElement('problem')
@@ -197,16 +224,16 @@ class OlxExport:
 
         que_text_node.appendChild(que_text)
         _ch_node.appendChild(que_text_node)
-
-        opt_node = self.doc.createElement('optioninput')
-        for opt in question.get("options"):
-            option_node = self.doc.createElement('option')
-            option_node.setAttribute("correct", str(opt.get("is_correct")).lower())
-            opt_text = self.doc.createCDATASection(str(opt.get('option_text')))
-            option_node.appendChild(opt_text)
-            opt_node.appendChild(option_node)
+        for opt_lists in question.get("options"):
+            opt_node = self.doc.createElement('optioninput')
+            for opt in opt_lists:
+                option_node = self.doc.createElement('option')
+                option_node.setAttribute("correct", str(opt.get("is_correct")).lower())
+                opt_text = self.doc.createCDATASection(str(opt.get('option_text')))
+                option_node.appendChild(opt_text)
+                opt_node.appendChild(option_node)
+            _ch_node.appendChild(opt_node)
         
-        _ch_node.appendChild(opt_node)
         problem_node.appendChild(_ch_node)
 
         return problem_node
