@@ -92,16 +92,11 @@ class OlxExport:
                     self._add_olx_nodes(child, dd["children"], tags[1:])
             else:
                 for child in all_child:
-                    if "title" in dd:
+                    if not child.getAttribute('display_name') and "title" in dd:
                         child.setAttribute("display_name", dd["title"])
                     elt.appendChild(child)
                     if "children" in dd:
                         self._add_olx_nodes(child, dd["children"], tags[1:])
-            # if "title" in dd:
-            #     child.setAttribute("display_name", dd["title"])
-            # elt.appendChild(child)
-            # if "children" in dd:
-            #     self._add_olx_nodes(child, dd["children"], tags[1:])
 
     def _create_lti_node(self, details):
         node = self.doc.createElement('lti_consumer')
