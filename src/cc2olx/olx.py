@@ -77,6 +77,8 @@ class OlxExport:
                             all_child.append(self._create_multiple_text_input(que))
                         elif  que.get("que_type") in ["dropdowns_question"]:
                             all_child.append(self._create_dropdowns_question(que))
+                        elif que.get("que_type") in ["text_only_question"]:
+                            all_child.append(self._create_text_only_content(que))
                         else:
                             print("*** Skipping problem: problem_type: {}".format(que.get("que_type")))
                 else:
@@ -231,6 +233,14 @@ class OlxExport:
         
         problem_node.appendChild(_ch_node)
 
+        return problem_node
+
+    def _create_text_only_content(self, question):
+        """ Converts text_only problem of Canvas into webcontent """
+        problem_node = self.doc.createElement('html')
+        problem_node.setAttribute('display_name', question.get('title'))
+        que_text = self.doc.createCDATASection(question.get('que_text'))
+        problem_node.appendChild(que_text)
         return problem_node
         
 def convert_link_to_video(details):
