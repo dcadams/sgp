@@ -84,6 +84,18 @@ class OlxExport:
                             all_child.append(self._create_text_only_content(que))
                         else:
                             print("*** Skipping problem: problem_type: {}".format(que.get("que_type")))
+                elif type == "discussion":
+                    child = self.doc.createElement("html")
+                    child.setAttribute('display_name', details["title"])
+                    if details["html"]:
+                        txt = self.doc.createCDATASection(details["html"])
+                        child.appendChild(txt)
+                        all_child.append(child)
+                    child2 = self.doc.createElement("discussion")
+                    child2.setAttribute('xblock-family', "xblock.v1")
+                    child2.setAttribute('discussion_target', "General")
+                    child2.setAttribute('discussion_category', "General")
+                    all_child.append(child2)
                 else:
                     raise Exception("WUT")
             else:
