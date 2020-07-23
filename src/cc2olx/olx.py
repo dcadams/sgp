@@ -114,6 +114,7 @@ class OlxExport:
                     elt.appendChild(child)
                     if "children" in dd:
                         self._add_olx_nodes(child, dd["children"], tags[1:])
+                
 
     def _create_lti_node(self, details):
         node = self.doc.createElement('lti_consumer')
@@ -147,7 +148,7 @@ class OlxExport:
             _ch_node = self.doc.createElement('choiceresponse')
             opt_node = self.doc.createElement('checkboxgroup')
             
-        que_text_node = self.doc.createElement('p')
+        que_text_node = self.doc.createElement('label')
         que_text = self.doc.createCDATASection(question.get('que_text'))
         for opt in question.get("options"):
             option_node = self.doc.createElement('choice')
@@ -176,7 +177,7 @@ class OlxExport:
         if ans_option:
             _qe_node.setAttribute('answer', ans_option[0])
         
-        que_text_node = self.doc.createElement('p')
+        que_text_node = self.doc.createElement('label')
         _qe_node.appendChild(que_text_node)
         
         que_text = self.doc.createCDATASection(question.get('que_text'))
@@ -210,7 +211,7 @@ class OlxExport:
                 _qe_node.setAttribute('answer', ans_list[0])
 
             if _index == 0:
-                que_text_node = self.doc.createElement('p')
+                que_text_node = self.doc.createElement('label')
                 _qe_node.appendChild(que_text_node)
                 que_text = self.doc.createCDATASection(question.get('que_text'))
                 que_text_node.appendChild(que_text)
@@ -231,12 +232,14 @@ class OlxExport:
         problem_node = self.doc.createElement('problem')
         problem_node.setAttribute('display_name', question.get('title'))
         _ch_node = self.doc.createElement('optionresponse')
-        que_text_node = self.doc.createElement('p')
+        que_text_node = self.doc.createElement('label')
         que_text = self.doc.createCDATASection(question.get('que_text'))
 
         que_text_node.appendChild(que_text)
         _ch_node.appendChild(que_text_node)
-        for opt_lists in question.get("options"):
+        for index, opt_lists in enumerate(question.get("options")):
+            if index:
+                _ch_node = self.doc.createElement('optionresponse')
             opt_node = self.doc.createElement('optioninput')
             for opt in opt_lists:
                 option_node = self.doc.createElement('option')
@@ -245,29 +248,30 @@ class OlxExport:
                 option_node.appendChild(opt_text)
                 opt_node.appendChild(option_node)
             _ch_node.appendChild(opt_node)
-        
-        problem_node.appendChild(_ch_node)
+            problem_node.appendChild(_ch_node)
 
         return problem_node
 
     def _create_matching_question(self, question):
         problem_node = self.doc.createElement('problem')
         problem_node.setAttribute('display_name', question.get('title'))
-        que_text_node = self.doc.createElement('p')
+        que_text_node = self.doc.createElement('label')
         que_text = self.doc.createCDATASection(question.get('que_text'))
 
         que_text_node.appendChild(que_text)
-        problem_node.appendChild(que_text_node)
-        for option, opt_lists in question.get("options").items():
-            opt_text_node = self.doc.createElement('p')
-            opt = self.doc.createCDATASection(option)            
-            opt_text_node.appendChild(opt)
-            problem_node.appendChild(opt_text_node)            
+        for index, (option, opt_lists) in enumerate(question.get("options").items()):
+            opt = self.doc.createCDATASection(option)
+            if index:
+                opt_text_node = self.doc.createElement('label')
+                opt_text_node.appendChild(opt)
+                problem_node.appendChild(opt_text_node)
+            else:
+                que_text_node.appendChild(opt)
+                problem_node.appendChild(que_text_node)
             random.shuffle(opt_lists)
             _ch_node = self.doc.createElement('optionresponse')
             opt_node = self.doc.createElement('optioninput')
             for opt in opt_lists:
-                # import pdb; pdb.set_trace()
                 option_node = self.doc.createElement('option')
                 option_node.setAttribute("correct", str(opt.get("is_correct")).lower())
                 opt_text = self.doc.createCDATASection(str(opt.get('option_text')))
