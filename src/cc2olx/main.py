@@ -27,13 +27,24 @@ def convert_one_file(input_file, workspace):
     with open(str(olx_filename), "w") as olxfile:
         olxfile.write(xml)
 
-    tgz_filename = os.path.join(workspace, cartridge.directory + ".tar.gz")
-    asset_path = os.path.join(workspace, cartridge.directory + "/web_resources")
+    tgz_filename = cartridge.directory.with_suffix(".tar.gz")
+    asset_path = cartridge.directory / "web_resources"
 
-    if os.path.exists(asset_path):
-        olx.multifile_tar_gz(tgz_filename, olx_filename, cartridge.directory, asset_path, xml.encode("utf8"), "course.xml")
+    if asset_path.exists():
+        olx.multifile_tar_gz(
+                tgz_filename,
+                olx_filename,
+                cartridge.directory,
+                asset_path,
+                xml.encode("utf8"),
+                "course.xml"
+            )
     else:
-        olx.onefile_tar_gz(tgz_filename, xml.encode("utf8"), "course.xml")
+        olx.onefile_tar_gz(
+                tgz_filename,
+                xml.encode("utf8"),
+                "course.xml"
+            )
 
 
 def main():

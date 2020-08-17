@@ -1,14 +1,5 @@
-Common-cartridge-converter
-############################
-
-Converts .imscc into Open edX supported .tar.gz
-
-
-A modified repo with more improved code, stability and supports more problem types...
-
-
-cc2olx(Base Repo)
------------------
+cc2olx
+######
 
 *cc2olx* is a converter of `Common Cartridge <https://www.imsglobal.org/activity/common-cartridge>`_ `.imscc` files into `.tar.gz` files that can be imported into Studio.
 

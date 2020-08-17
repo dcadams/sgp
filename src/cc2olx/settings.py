@@ -2,6 +2,10 @@ from pathlib import Path
 
 COMMON_CARTRIDGE_FILE_EXTENSION = ".imscc"
 
+MANIFEST = 'imsmanifest.xml'
+RESULT_TYPE_FOLDER = 'folder'
+RESULT_TYPE_ZIP = "zip"
+
 
 def _is_cartridge_file(path):
     return path.is_file() and path.suffix == COMMON_CARTRIDGE_FILE_EXTENSION

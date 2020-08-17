@@ -1,8 +1,8 @@
 import io
 import re
-import os
 import tarfile
 import random
+
 import xml.dom.minidom
 from shutil import copytree, rmtree
 
@@ -36,13 +36,13 @@ class OlxExport:
     def _add_olx_nodes(self, elt, data, tags):
         leaf = not tags
         all_child = []
-        self.count = self.count + 1
+        # self.count = self.count + 1
         for dd in data:
             if leaf:
                 type = None
                 if "identifierref" in dd:
                     idref = dd["identifierref"]
-                    type, details = self.cartridge.get_resource_content(idref, self.count)
+                    type, details = self.cartridge.get_resource_content(idref)
                 if type is None:
                     type = "html"
                     details = {
@@ -114,7 +114,6 @@ class OlxExport:
                     elt.appendChild(child)
                     if "children" in dd:
                         self._add_olx_nodes(child, dd["children"], tags[1:])
-                
 
     def _create_lti_node(self, details):
         node = self.doc.createElement('lti_consumer')
@@ -135,6 +134,7 @@ class OlxExport:
         node.setAttribute('launch_url', details['launch_url'])
         node.setAttribute('modal_height', details['height'])
         node.setAttribute('modal_width', details['width'])
+        node.setAttribute('lti_id', details.get("lti_id"))
         node.setAttribute('xblock-family', 'xblock.v1')
         return node
 
@@ -147,7 +147,7 @@ class OlxExport:
         elif question.get("que_type") == "multiple_response":
             _ch_node = self.doc.createElement('choiceresponse')
             opt_node = self.doc.createElement('checkboxgroup')
-            
+
         que_text_node = self.doc.createElement('label')
         que_text = self.doc.createCDATASection(question.get('que_text'))
         for opt in question.get("options"):
@@ -156,7 +156,7 @@ class OlxExport:
             opt_text = self.doc.createCDATASection(str(opt.get('option_text')))
             option_node.appendChild(opt_text)
             opt_node.appendChild(option_node)
-            
+
         que_text_node.appendChild(que_text)
 
         _ch_node.appendChild(que_text_node)
@@ -164,7 +164,6 @@ class OlxExport:
         problem_node.appendChild(_ch_node)
 
         return problem_node
-
 
     def _create_text_or_numeric_input(self, question):
         problem_node = self.doc.createElement('problem')
@@ -176,18 +175,18 @@ class OlxExport:
             _qe_node = self.doc.createElement('numericalresponse')
         if ans_option:
             _qe_node.setAttribute('answer', ans_option[0])
-        
+
         que_text_node = self.doc.createElement('label')
         _qe_node.appendChild(que_text_node)
-        
+
         que_text = self.doc.createCDATASection(question.get('que_text'))
         que_text_node.appendChild(que_text)
-        
+
         for ans in ans_option[1:]:
             option_node = self.doc.createElement('additional_answer')
             option_node.setAttribute('answer', ans)
             _qe_node.appendChild(option_node)
-        
+
         if question.get('que_type') == "text_input":
             text_line_node = self.doc.createElement('textline')
             text_line_node.setAttribute('size', '50')
@@ -278,19 +277,19 @@ class OlxExport:
                 option_node.appendChild(opt_text)
                 opt_node.appendChild(option_node)
             _ch_node.appendChild(opt_node)
-        
+
             problem_node.appendChild(_ch_node)
 
         return problem_node
 
     def _create_text_only_content(self, question):
-        """ Converts text_only problem of Canvas into webcontent """
         problem_node = self.doc.createElement('html')
         problem_node.setAttribute('display_name', question.get('title'))
         que_text = self.doc.createCDATASection(question.get('que_text'))
         problem_node.appendChild(que_text)
         return problem_node
-        
+
+
 def convert_link_to_video(details):
     """Possibly convert a link to a video."""
     # YouTube links can be like this: https://www.youtube.com/watch?v=gQ-cZRmHfs4&amp;amp;list=PL5B350D511278A56B
@@ -307,20 +306,24 @@ def onefile_tar_gz(filetgz, content, string_name):
     with tarfile.open(str(filetgz), 'w:gz') as tgz:
         tgz.addfile(tarinfo, io.BytesIO(content))
 
-def multifile_tar_gz(filetgz, olx_file, cartridge_dir, asset_path, contents, string_name="course.xml"):
+    with tarfile.open(str(filetgz), 'w:gz') as tgz:
+        tgz.addfile(tarinfo, io.BytesIO(content))
+
+
+def multifile_tar_gz(filetgz, olx_file, cartridge_dir, asset_path, content, string_name="course.xml"):
     """
     crates tar.gz file having assets(static dir) of course and course.xml
     """
     tarinfo = tarfile.TarInfo(string_name)
-    tarinfo.size = len(contents)
+    tarinfo.size = len(content)
     try:
-        static_dir = cartridge_dir + 'assets/static'
-        if os.path.exists(static_dir) and os.path.isdir(static_dir):
-            rmtree(static_dir)
-        copytree(asset_path, static_dir)
+        static_dir = cartridge_dir / 'assets/static'
+        if static_dir.exists() and static_dir.is_dir():
+            rmtree(static_dir._str)
+        copytree(asset_path._str, static_dir._str)
     except Exception as e:
-        pass
+        print(str(e))
     else:
-        with tarfile.open(filetgz, 'w:gz') as tgz:
-            tgz.addfile(tarinfo, io.BytesIO(contents))
-            tgz.add(static_dir, arcname='static')
+        with tarfile.open(str(filetgz), 'w:gz') as tgz:
+            tgz.addfile(tarinfo, io.BytesIO(content))
+            tgz.add(static_dir._str, arcname='static')

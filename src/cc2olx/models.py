@@ -4,8 +4,8 @@ from textwrap import dedent
 import zipfile
 
 from cc2olx import filesystem
+from cc2olx.settings import MANIFEST
 
-MANIFEST = 'imsmanifest.xml'
 DIFFUSE_SHALLOW_SECTIONS = False
 DIFFUSE_SHALLOW_SUBSECTIONS = True
 
@@ -261,18 +261,38 @@ class Cartridge:
             res_filename = self._res_filename(res["children"][0].href)
             if res_filename.suffix == ".html":
                 try:
-                    with open(str(res_filename)) as res_file:
+                    with res_filename.open() as res_file:
                         html = res_file.read()
-                except:  # noqa: E722
-                    print(
-                        "Failure reading {!r} from id {}".format(
-                            res_filename, identifier
-                        )
-                    )
+                        if '%24IMS-CC-FILEBASE%24' in html:
+                            html = html.replace('%24IMS-CC-FILEBASE%24', '/static')
+                            html = html.replace('%20', '_')
+                except Exception:
+                    print("Failure reading {!r} from id {}".format(res_filename, identifier))
                     raise
                 return "html", {"html": html}
+            elif 'web_resources' in str(res_filename):
+                if res_filename.suffix in ('.jpg', '.jpeg', '.png', '.apng', '.gif', '.ico', '.bmp', '.svg', '.webp'):
+                    try:
+                        static_filename = str(res_filename).split('web_resources/')[1].replace(' ', '_')
+                        html = '<html>\n<head>\n<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>\n</head>\n<body>\n<p>\
+                                <img src="{}" alt="{}">\
+                                </p>\n</body>\n</html>'.format('/static/'+static_filename, static_filename)
+                    except Exception:
+                        return None, None
+                    return "html", {"html": html}
+                elif res_filename.suffix == ".pdf":
+                    try:
+                        static_filename = str(res_filename).split('web_resources/')[1].replace(' ', '_')
+                        html = '<html>\n<head>\n<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>\n</head>\n<body>\n<p>\
+                             <embed src="/static/{}" width="800px" height="650px" />\
+                             </p>\n</body>\n</html>'.format(static_filename)
+                    except Exception:
+                        return None, None
+                    return "html", {"html": html}
+                else:
+                    return None, None
             else:
-                print("*** Skipping webcontent: {}".format(res_filename))
+                print("*** Skipping webcontent: {}".format(str(res_filename)))
                 return None, None
         elif res_type == "imswl_xmlv1p1":
             tree = filesystem.get_xml_tree(self._res_filename(res["children"][0].href))
@@ -281,15 +301,242 @@ class Cartridge:
             title = root.find("wl:title", ns).text
             url = root.find("wl:url", ns).get("href")
             return "link", {"href": url, "text": title}
-        elif res_type == "imsbasiclti_xmlv1p0":
+        elif res_type == "imsdt_xmlv1p1":
+            tree = filesystem.get_xml_tree(self._res_filename(res["children"][0].href))
+            if self._res_filename(res["children"][0].href).name.endswith('.xml'):
+                root = tree.getroot()
+                nswl = {"wl": "http://www.imsglobal.org/xsd/imsccv1p1/imswl_v1p1"}
+                nsdt = {"wl": "http://www.imsglobal.org/xsd/imsccv1p1/imsdt_v1p1"}
+                if root.find("wl:url", nswl) is not None:
+                    title = root.find("wl:title", nswl).text
+                    url = root.find("wl:url", nswl).get("href")
+                    return "link", {"href": url, "text": title}
+                else:
+                    title = root.find("wl:title", nsdt).text
+                    html = root.find("wl:text", nsdt).text
+                    if not html:
+                        return "discussion", {"html": None, "title": title}
+                    elif '%24IMS-CC-FILEBASE%24' in html:
+                        html = html.replace('%24IMS-CC-FILEBASE%24', '/static')
+                        html = html.replace('%20', '_')
+                    return "discussion", {"html": html, "title": title}
+            else:
+                return unimported_content_html(res_type, res)
+        elif res_type == 'associatedcontent/imscc_xmlv1p1/learning-application-resource':
+            _converted = False
+            for index, child in enumerate(res.get('children')):
+                if "assignment_settings.xml" in child.href:
+                    try:
+                        tree = filesystem.get_xml_tree(self._res_filename(res["children"][index].href))
+                        root = tree.getroot()
+                        ns = {"wl": "http://canvas.instructure.com/xsd/cccv1p0"}
+                        title = root.find("wl:title", ns)
+                        new_identifier = root.find("wl:external_tool_identifierref", ns)
+                        external_tool_url = root.find("wl:external_tool_url", ns)
+                        res = self.resources_by_id.get(new_identifier.text)
+                        if res['type'] == "imsbasiclti_xmlv1p0":
+                            data = self._parse_lti(res, external_tool_url if external_tool_url is not None else None)
+                            _converted = True
+                            return 'lti', data
+                    except Exception:
+                        return unimported_content_html(res_type, res)
+            if not _converted:
+                return unimported_content_html(res_type, res)
+
+        elif res_type == 'imsbasiclti_xmlv1p0':
             data = self._parse_lti(res)
-            return "lti", data
+            return 'lti', data
+        elif res_type == "imsqti_xmlv1p2/imscc_xmlv1p1/assessment":
+            try:
+                problems = []
+                # tree = filesystem.get_xml_tree(self._res_filename(res["children"][0].href))
+                # Updated
+                try:
+                    qti_id = res["children"][1].identifierref
+                    new_res = self.resources_by_id.get(qti_id)
+                    tree = filesystem.get_xml_tree(self._res_filename(new_res["children"][1].href))
+                except Exception:
+                    tree = filesystem.get_xml_tree(self._res_filename(res["children"][0].href))
+                # End updated
+                root = tree.getroot()
+                ns = {"wl": "http://www.imsglobal.org/xsd/ims_qtiasiv1p2"}
+                questions = root.findall("wl:assessment/wl:section/wl:item", ns)
+                for que in questions:
+                    que_type = que.find("wl:itemmetadata/wl:qtimetadata/wl:qtimetadatafield/wl:fieldentry", ns).text
+                    if que_type in [
+                        "true_false_question",
+                        "multiple_choice_question",
+                        "multiple_answers_question",
+                        "cc.true_false.v0p1",
+                        "cc.multiple_choice.v0p1",
+                        "cc.multiple_response.v0p1"
+                    ]:
+                        que_title = que.get("title")
+                        que_details = que.find("wl:presentation", ns)
+                        que_text = str(que_details.find("wl:material/wl:mattext", ns).text)
+                        # clean = re.compile('<.*?>')
+                        # que_text = re.sub(clean, '', que_text)
+                        que_options = que_details.findall("wl:response_lid/wl:render_choice/wl:response_label", ns)
+                        if que_type in [
+                            "true_false_question",
+                            "multiple_choice_question",
+                            "cc.true_false.v0p1",
+                            "cc.multiple_choice.v0p1"
+                        ]:
+                            _type = "multiplechoiceresponse"
+                            ans_id = [
+                                que.find(
+                                        "wl:resprocessing/wl:respcondition/wl:conditionvar/wl:varequal",
+                                        ns
+                                    ).text
+                            ]
+                        if que_type in ["multiple_answers_question", "cc.multiple_response.v0p1"]:
+                            ans_list = que.findall(
+                                            "wl:resprocessing/wl:respcondition/wl:conditionvar/wl:and/wl:varequal",
+                                            ns
+                                        )
+                            _type = "multiple_response"
+                            ans_id = [ans.text for ans in ans_list]
+
+                        options = []
+                        for option in que_options:
+                            options.append(
+                                {
+                                    "is_correct": option.get("ident") in ans_id,
+                                    "option_text": option.find("wl:material/wl:mattext", ns).text
+                                }
+                            )
+                        context = {
+                            "title": que_title,
+                            "que_type": _type,
+                            "que_text": que_text,
+                            "options": options
+                        }
+                        problems.append(context)
+                    elif que_type in [
+                                        "short_answer_question",
+                                        "cc.fib.v0p1",
+                                        "numerical_question",
+                                        "fill_in_multiple_blanks_question"
+                                    ]:
+                        que_title = que.get("title")
+                        que_details = que.find("wl:presentation", ns)
+                        que_text = str(que_details.find("wl:material/wl:mattext", ns).text)
+                        # clean = re.compile('<.*?>')
+                        # que_text = re.sub(clean, '', que_text)
+                        que_text = re.sub(r"[\(\[].*?[\)\]]", "________ ", que_text)
+
+                        if que_type in ["fill_in_multiple_blanks_question"]:
+                            _type = "multiple_text_input"
+                            ans_tags = que_details.findall("wl:response_lid", ns)
+                            ans_list = []
+                            for tag in ans_tags:
+                                ans_opts = tag.findall("wl:render_choice/wl:response_label/wl:material/wl:mattext", ns)
+                                ans_list.append([ans.text for ans in ans_opts])
+                        if que_type in ["short_answer_question", "cc.fib.v0p1"]:
+                            ans_list = que.findall("wl:resprocessing/wl:respcondition/wl:conditionvar/wl:varequal", ns)
+                            _type = "text_input"
+                            ans_list = [ans.text for ans in ans_list]
+                        if que_type in ["numerical_question"]:
+                            ans_list = que.findall(
+                                            "wl:resprocessing/wl:respcondition/wl:conditionvar/wl:or/wl:varequal",
+                                            ns
+                                        )
+                            _type = "numeric_input"
+                            ans_list = [ans.text for ans in ans_list]
+
+                        context = {
+                            "title": que_title,
+                            "que_type": _type,
+                            "que_text": que_text,
+                            "options": ans_list
+                        }
+                        problems.append(context)
+                    elif que_type in ["multiple_dropdowns_question"]:
+                        que_title = que.get("title")
+                        que_details = que.find("wl:presentation", ns)
+                        que_text = str(que_details.find("wl:material/wl:mattext", ns).text)
+                        # clean = re.compile('<.*?>')
+                        # que_text = re.sub(clean, '', que_text).replace('\n', "")
+                        que_text = re.sub(r"[\(\[].*?[\)\]]", "________ ", que_text)
+                        # que_options = que_details.findall("wl:response_lid/wl:render_choice/wl:response_label", ns)
+                        que_options = que_details.findall("wl:response_lid/wl:render_choice", ns)
+                        ans_ids = que.findall("wl:resprocessing/wl:respcondition/wl:conditionvar/wl:varequal", ns)
+                        options_list = []
+                        for _index, que_opt in enumerate(que_options):
+                            ans_opts = que_opt.findall("wl:response_label", ns)
+                            options = []
+                            for option in ans_opts:
+                                options.append(
+                                    {
+                                        "is_correct": option.get("ident") in ans_ids[_index].text,
+                                        "option_text": option.find("wl:material/wl:mattext", ns).text
+                                    }
+                                )
+                            options_list.append(options)
+                        _type = "dropdowns_question"
+                        context = {
+                            "title": que_title,
+                            "que_type": _type,
+                            "que_text": que_text,
+                            "options": options_list
+                        }
+                        problems.append(context)
+                    elif que_type in ["matching_question"]:
+                        que_title = que.get("title")
+                        que_details = que.find("wl:presentation", ns)
+                        que_text = str(que_details.find("wl:material/wl:mattext", ns).text)
+                        # clean = re.compile('<.*?>')
+                        # que_text = re.sub(clean, '', que_text).replace('\n', "")
+                        que_text = re.sub(r"[\(\[].*?[\)\]]", "________ ", que_text)
+                        # ans_tags = que_details.findall("wl:response_lid", ns)
+
+                        que_options = que_details.findall("wl:response_lid", ns)
+                        ans_ids = que.findall("wl:resprocessing/wl:respcondition/wl:conditionvar/wl:varequal", ns)
+                        options_list = {}
+                        for _index, que_opt in enumerate(que_options):
+                            ans_opts = que_opt.findall("wl:render_choice/wl:response_label", ns)
+                            options = []
+                            for option in ans_opts:
+                                options.append(
+                                    {
+                                        "is_correct": option.get("ident") in ans_ids[_index].text,
+                                        "option_text": option.find("wl:material/wl:mattext", ns).text
+                                    }
+                                )
+                            options_list[que_opt.find("wl:material/wl:mattext", ns).text] = options
+                        _type = "matching_question"
+                        context = {
+                            "title": que_title,
+                            "que_type": _type,
+                            "que_text": que_text,
+                            "options": options_list
+                        }
+                        problems.append(context)
+                    elif que_type in ["text_only_question"]:
+                        que_title = que.get("title")
+                        que_details = que.find("wl:presentation", ns)
+                        html_txt = str(que_details.find("wl:material/wl:mattext", ns).text)
+                        if '%24IMS-CC-FILEBASE%24' in html_txt:
+                            html_txt = html_txt.replace('%24IMS-CC-FILEBASE%24', '/static')
+                            html_txt = html_txt.replace('%20', '_')
+                        context = {
+                            "title": que_title,
+                            "que_type": que_type,
+                            "que_text": html_txt
+                        }
+
+                        problems.append(context)
+                    else:
+                        print("*** Skipping problem: res_type: {} problem_type: {}".format(res_type, que_type))
+                        # unimported_content_html(res_type, res)
+                return "problems", {"problems": problems}
+                # return "html", { "html": "problems" }
+            except Exception:
+                print("*** Skipping problem: res_type:{} problem_type{}".format(res_type, que_type))
+                unimported_content_html(res_type, res)
         else:
-            text = "Unimported content: type = {!r}".format(res_type)
-            if "href" in res:
-                text += ", href = {!r}".format(res["href"])
-            print("***", text)
-            return "html", {"html": text}
+            return unimported_content_html(res_type, res)
 
     def load_manifest_extracted(self):
         manifest = self._extract()
@@ -341,11 +588,11 @@ class Cartridge:
             for resource in self.resources:
                 for res_file in resource.get('children'):
                     if "course_settings.xml" in res_file.href:
-                        res_tree = filesystem.get_xml_tree(self.res_filename(res_file.href))
+                        res_tree = filesystem.get_xml_tree(self._res_filename(res_file.href))
                         root = res_tree.getroot()
                         ns = {"wl": "http://canvas.instructure.com/xsd/cccv1p0"}
                         return root.find("wl:start_at", ns).text
-        except Exception as e:
+        except Exception:
             return None
 
     def get_end_date(self):
@@ -353,24 +600,23 @@ class Cartridge:
             for resource in self.resources:
                 for res_file in resource.get('children'):
                     if "course_settings.xml" in res_file.href:
-                        res_tree = filesystem.get_xml_tree(self.res_filename(res_file.href))
+                        res_tree = filesystem.get_xml_tree(self._res_filename(res_file.href))
                         root = res_tree.getroot()
                         ns = {"wl": "http://canvas.instructure.com/xsd/cccv1p0"}
                         return root.find("wl:conclude_at", ns).text
-        except Exception as e:
+        except Exception:
             return None
 
     def get_course_image(self):
         try:
-            course_image_path = self.res_filename("web_resources/course_image")
+            course_image_path = self._res_filename("web_resources/course_image")
             if os.path.exists(course_image_path):
                 course_image_file = os.listdir(course_image_path)[0]
                 return "course_image_" + course_image_file
             else:
                 return None
-        except Exception as e:
+        except Exception:
             return None
-
 
     def get_language(self):
         # TODO: ensure the type of language code in the metadata
@@ -598,8 +844,8 @@ class Cartridge:
     def _res_filename(self, file_name):
         return self.directory / file_name
 
-    def parse_lti(self, resource, launch_url=None):
-        tree = filesystem.get_xml_tree(self.res_filename(resource["children"][0].href))
+    def _parse_lti(self, resource, launch_url=None):
+        tree = filesystem.get_xml_tree(self._res_filename(resource["children"][0].href))
         root = tree.getroot()
         ns = {
             'blti': 'http://www.imsglobal.org/xsd/imsbasiclti_v1p0',
@@ -608,7 +854,7 @@ class Cartridge:
         }
         title = root.find('blti:title', ns).text
         description = root.find('blti:description', ns).text
-        if launch_url != None:
+        if launch_url is not None:
             launch_url = launch_url.text
         else:
             launch_url = root.find('blti:secure_launch_url', ns)
@@ -646,9 +892,10 @@ class Cartridge:
         }
         return data
 
-def unimported_content_html(res_type, res, count=''):
-    text = "{} Unimported content: type = {!r}".format(count, res_type)
+
+def unimported_content_html(res_type, res):
+    text = "Unimported content: type = {!r}".format(res_type)
     if "href" in res:
         text += ", href = {!r}".format(res["href"])
     print("***", text)
-    return "html", { "html": text }
+    return "html", {"html": text}
